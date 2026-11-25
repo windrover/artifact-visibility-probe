@@ -30,23 +30,17 @@ jobs:
           head -c "$PAYLOAD_BYTES" /dev/urandom > site/blob.bin
           ls -l site/
 
-      - name: Does the runtime env reach action processes?
-        uses: ./probe-env
-
       - name: Upload Pages artifact (same action as production)
         id: upload
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
-      - name: Poll the artifact listing (twirp ListArtifacts, same path deploy-pages uses)
+      - name: Poll the artifact listing (twirp ListArtifacts, the same lookup deploy-pages does)
         continue-on-error: true
+        uses: ./probe-poll
         env:
           POLL_INTERVAL_MS: ${{ inputs.poll_interval_ms }}
-        run: |
-          echo "artifact_id=${{ steps.upload.outputs.artifact_id }}"
-          date -u +"poll_start=%FT%T.%3NZ"
-          python3 scripts/poll_visibility.py
 
       - name: Cross-check the REST artifacts view
         if: always()
