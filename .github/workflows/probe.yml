@@ -1,0 +1,55 @@
+name: artifact-visibility-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      poll_interval_ms:
+        description: 'poll interval in milliseconds'
+        required: false
+        default: '200'
+      payload_bytes:
+        description: 'size of the random payload file (bytes)'
+        required: false
+        default: '1900000'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build payload (~1.9 MB, matches the failing Pages artifact size)
+        env:
+          PAYLOAD_BYTES: ${{ inputs.payload_bytes }}
+        run: |
+          head -c "$PAYLOAD_BYTES" /dev/urandom > site/blob.bin
+          ls -l site/
+
+      - name: Upload Pages artifact (same action as production)
+        id: upload
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Poll the artifact listing (twirp ListArtifacts, same path deploy-pages uses)
+        continue-on-error: true
+        env:
+          POLL_INTERVAL_MS: ${{ inputs.poll_interval_ms }}
+        run: |
+          echo "artifact_id=${{ steps.upload.outputs.artifact_id }}"
+          date -u +"poll_start=%FT%T.%3NZ"
+          python3 scripts/poll_visibility.py
+
+      - name: Cross-check the REST artifacts view
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+            | python3 -c "import json,sys;d=json.load(sys.stdin);print('rest_total=%s names=%s' % (d.get('total_count'), [a['name'] for a in d.get('artifacts',[])]))"
