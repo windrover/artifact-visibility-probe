@@ -1,12 +1,14 @@
 name: artifact-visibility-probe
 
+# Measures how long a freshly finalized `github-pages` artifact stays invisible to
+# actions/deploy-pages (which lists it via the Actions artifact service).
+# One run probes the lookup at increasing offsets after the upload finalizes; the first
+# offset whose lookup succeeds brackets the visibility time for that run.
+# Context: actions/deploy-pages#451, actions/download-artifact#505
+
 on:
   workflow_dispatch:
     inputs:
-      poll_interval_ms:
-        description: 'poll interval in milliseconds'
-        required: false
-        default: '200'
       payload_bytes:
         description: 'size of the random payload file (bytes)'
         required: false
@@ -14,12 +16,13 @@ on:
 
 permissions:
   contents: read
-  actions: read
+  pages: write
+  id-token: write
 
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v5
 
@@ -36,17 +39,67 @@ jobs:
         with:
           path: site
 
-      - name: Poll the artifact listing (twirp ListArtifacts, the same lookup deploy-pages does)
+      - name: Deploy attempt at +0s (lookup right after finalize)
+        id: a0
+        uses: actions/deploy-pages@v5
         continue-on-error: true
-        uses: ./probe-poll
-        env:
-          POLL_INTERVAL_MS: ${{ inputs.poll_interval_ms }}
 
-      - name: Cross-check the REST artifacts view
+      - name: Wait 2s
+        run: sleep 2
+
+      - name: Deploy attempt at +2s
+        id: a2
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+      - name: Wait 3s
+        run: sleep 3
+
+      - name: Deploy attempt at +5s
+        id: a5
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+      - name: Wait 5s
+        run: sleep 5
+
+      - name: Deploy attempt at +10s
+        id: a10
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+      - name: Wait 10s
+        run: sleep 10
+
+      - name: Deploy attempt at +20s
+        id: a20
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+      - name: Wait 20s
+        run: sleep 20
+
+      - name: Deploy attempt at +40s
+        id: a40
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+      - name: Wait 30s
+        run: sleep 30
+
+      - name: Deploy attempt at +70s
+        id: a70
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+      - name: Summarize (first offset whose lookup succeeded)
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          curl -s -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
-            | python3 -c "import json,sys;d=json.load(sys.stdin);print('rest_total=%s names=%s' % (d.get('total_count'), [a['name'] for a in d.get('artifacts',[])]))"
+          echo "outcome at +0s:  ${{ steps.a0.outcome }}"
+          echo "outcome at +2s:  ${{ steps.a2.outcome }}"
+          echo "outcome at +5s:  ${{ steps.a5.outcome }}"
+          echo "outcome at +10s: ${{ steps.a10.outcome }}"
+          echo "outcome at +20s: ${{ steps.a20.outcome }}"
+          echo "outcome at +40s: ${{ steps.a40.outcome }}"
+          echo "outcome at +70s: ${{ steps.a70.outcome }}"
+          echo "upload_artifact_id=${{ steps.upload.outputs.artifact_id }}"

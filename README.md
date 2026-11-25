@@ -1,13 +1,18 @@
 # artifact-visibility-probe
 
-Measures how long a freshly finalized GitHub Actions artifact stays invisible to the artifact service
-listing (`twirp ...ArtifactService/ListArtifacts`, the lookup `actions/deploy-pages` performs).
+Measures how long a freshly finalized GitHub Actions artifact stays invisible to
+`actions/deploy-pages` (which lists the run's artifacts through the Actions artifact service).
 
-Context: https://github.com/actions/deploy-pages/issues/451 and https://github.com/actions/download-artifact/issues/505
+Each manual run:
 
-Each manual run uploads a ~1.9 MB `github-pages` artifact via `actions/upload-pages-artifact@v5`, then
-polls the same listing endpoint the deploy action uses (200 ms interval) and prints
+1. uploads a ~1.9 MB `github-pages` artifact via `actions/upload-pages-artifact@v5`,
+2. runs `actions/deploy-pages@v5` immediately, then again at cumulative offsets
+   **+2s, +5s, +10s, +20s, +40s, +70s** after the first attempt,
+3. prints the outcome of every attempt.
 
-    RESULT lag_ms=<time from first lookup to first successful listing> attempts=<n>
+The first offset whose deploy succeeds brackets the artifact visibility time for that run.
+A failure at an offset means the lookup still returned `Found 0 artifact(s)`.
 
-`lag_ms` is exactly the retry budget a deploy step would need.
+Context and reported cases:
+- https://github.com/actions/deploy-pages/issues/451
+- https://github.com/actions/download-artifact/issues/505

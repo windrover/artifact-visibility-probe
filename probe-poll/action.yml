@@ -1,5 +1,0 @@
-name: poll-visibility
-description: Poll the artifact-service listing from inside an action process (runtime env vars are only exposed there)
-runs:
-  using: node20
-  main: index.js
