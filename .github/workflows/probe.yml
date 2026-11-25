@@ -30,6 +30,9 @@ jobs:
           head -c "$PAYLOAD_BYTES" /dev/urandom > site/blob.bin
           ls -l site/
 
+      - name: Does the runtime env reach action processes?
+        uses: ./probe-env
+
       - name: Upload Pages artifact (same action as production)
         id: upload
         uses: actions/upload-pages-artifact@v5

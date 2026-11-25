@@ -1,0 +1,5 @@
+name: probe-env
+description: Report whether the Actions artifact-service runtime env vars reach an action process
+runs:
+  using: node20
+  main: index.js
